@@ -10,13 +10,14 @@ class BotPlayer(Player, ABC):
     def __init__(self, name: str, password: str = None, is_observer: bool = None):
         super().__init__(name, password, is_observer)
 
+
     def play_moves(self) -> (List, List):
         moves = []; shots = []
 
-        next_bests = self._game_map.next_best_hexs()
-        for i in range(len(next_bests)):
-            next_best = next_bests[i]
-            moves.append({'vehicle_id': i+1, 'target': {'x': next_best[0], 'y': next_best[1], 'z': next_best[2]}})
+        who = (1, 2, 3, 4, 5) # Tank ids of who is to move
+        where = (0, 0, 0)# Where are they to move, coords
+        new_positions: dict = self._game_map.move_to(who, where)
+        moves = [{'vehicle_id': k, 'target': {'x': v[0], 'y': v[1], 'z': v[2]}} for k, v in new_positions.items()]
 
         return moves, shots
 

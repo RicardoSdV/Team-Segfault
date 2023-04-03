@@ -1,16 +1,15 @@
+import itertools
 from collections import defaultdict
 import random as rnd
 from typing import List, Dict
-
 import matplotlib.pyplot as plt
-
 from src.client.server_enum import Action
 from src.entity.entity import Entity
 from src.entity.tank import Tank
 from src.map.hex import Hex
 
-
 class GameMap:
+    __THIRD = 1/3
     def __init__(self, game_map: dict):
         self.__map_size: int = 0
         self.__entities: dict[Hex, Entity] = {}
@@ -21,6 +20,9 @@ class GameMap:
         self.__tanks_in_base: list[int] = []
         self.__base: [Hex] = []
         self.parse_map(game_map)
+
+       # self.used_hexs_by_turn = [] #[thisTurn -> [(x,y,z), (x,y,z), ...],
+                                # [],[]]
 
     def parse_map(self, game_map: dict) -> None:
         """
@@ -150,35 +152,67 @@ class GameMap:
         plt.show(block=False)
         plt.close("all")
 
-    def next_best_hexs(self) -> List:
+    def get_dist(self, start: tuple, finish: tuple) -> float:
+        x1, y1, z1 = start
+        x2, y2, z2 = finish
+        return round(((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)**0.5, 2)
+
+    def move_to(self, who: tuple, where: tuple) -> dict:
+        #TODO: Test for edge cases, have only tested with where = (0,0,0)
         moves = [(1, 0, -1), (0, 1, -1), (1, -1, 0),
                  (-1, 0, 1), (0, -1, 1), (-1, 1, 0)]
 
-        old_positions = []
-        for tank_id, position in self.__tank_positions.items():
-            old_positions.append(position.get_coordinates())
+        old_positions = {tank_id: position.get_coordinates() for tank_id, position in self.__tank_positions.items() if
+                         tank_id in who}
 
-        new_positions = []
-        for old_position in old_positions:
-            sums = []
+        possible_moves_by_tanks = []# [[(x,y,z), (x,y,z)]
+        #                              [(x,y,z), (x,y,z)]] ordered by the same order that old positions has
+
+        #TODO: I'm pretty sure that if a given tank cant make any moves this thing breaks but i'll fix it
+
+        #Iterate through all the tanks and put all the possible moves all the tanks can make into possible_moves_by_tanks
+        for tank_id, old_position in old_positions.items():
             possible_nexts = []
-            for move in moves:
+            for move in moves: # put hexs that are the shortest possible distance away from 'where' into possible_nexts
                 new_position = old_position.copy()
-                abs_sum = 0
                 for i in range(3):
                     new_position[i] += move[i]
-                    abs_sum += abs(new_position[i])
-                if new_position not in old_positions and self.is_valid(Hex(old_position)) and new_position not in new_positions:
-                    sums.append(abs_sum)
+
+                if self.is_valid(Hex(new_position)) and new_position not in old_positions.values():
                     possible_nexts.append(new_position)
-            if len(possible_nexts) > 0:
-                min_sum = min(sums)
-                same_nexts = []
-                while min_sum in sums:
-                    min_sum_index = sums.index(min_sum)
-                    sums.pop(min_sum_index)
-                    same_nexts.append(possible_nexts.pop(min_sum_index))
-                new_positions.append(same_nexts[rnd.randint(0, len(same_nexts)-1)])
+
+            possible_moves_by_tanks.append(possible_nexts)
+
+        all_combinations = list(itertools.product(*possible_moves_by_tanks))# This creates all possible move combos
+
+        sums_dists = [] # This calculates the sum of all the distances to 'where' of all the given tanks for all the
+        for combination in all_combinations:# combinations of moves such that the lowest overall dist can be chosen
+            sum_dist = 0
+            for position in combination:
+                sum_dist += self.get_dist(position, where)
+            sums_dists.append(sum_dist)
+
+        def has_repeating_lists(lst: List) -> bool: #THis function checks if there are repeating lists within a list
+            for i, l1 in enumerate(lst):
+                for j, l2 in enumerate(lst):
+                    if i != j and l1 == l2:
+                        return True
+            return False
+
+#TODO This while loop i bet can be done more efficiently by not adding combinations with repeating lists in the first place
+        cnt = 0 #This loop removes combinations that have repeating lists which are coords of the future moves
+        while cnt < len(all_combinations):
+            positions = all_combinations[cnt]
+            if has_repeating_lists(positions):
+                all_combinations.pop(cnt)
+                sums_dists.pop(cnt)
+            else:
+                cnt += 1
+
+    #Choose the combination of moves with the overall shortest distance to 'where' and format appropiately
+        best_combination = all_combinations[min(enumerate(sums_dists), key=lambda x: x[1])[0]]
+        new_positions = {tank_id: best_combination[i] for i, tank_id in enumerate(old_positions)}
+
         return new_positions
 
 

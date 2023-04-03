@@ -78,14 +78,10 @@ class Game(Thread):
 
             if self.__current_player in self.__active_players:
                 moves, shots = self.__active_players[self.__current_player].play_moves()
-                #moves, shots = self.__active_players[self.__current_player].play_moves2()
-                print('moves', moves)
-                #self.__game_client.move(moves)
-                #'''
                 for move_dict in moves:
                     self.__game_client.move(move_dict)
                 for shot_dict in shots:
-                    self.__game_client.shoot(shot_dict)#'''
+                    self.__game_client.shoot(shot_dict)
 
             self.__game_client.force_turn()
             self.__start_next_turn()
